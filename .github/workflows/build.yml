@@ -26,13 +26,17 @@ jobs:
         run: |
           pyinstaller --noconfirm --onefile --windowed --icon="app_icon.ico" --name="FootyscopeFG" --collect-all PyQt6 --add-data "player_asset.png;." --add-data "gk_asset.png;." analiz.py
           
-      - name: Mac İçin Derleme
+      - name: Mac İçin Derleme ve DMG Oluşturma
         if: matrix.os == 'macos-latest'
         run: |
           pyinstaller --noconfirm --onefile --windowed --icon="app_icon.icns" --name="FootyscopeFG" --collect-all PyQt6 --add-data "player_asset.png:." --add-data "gk_asset.png:." analiz.py
+          chmod -R 755 dist/FootyscopeFG.app
+          hdiutil create -volname "FootyscopeFG" -srcfolder dist/FootyscopeFG.app -ov -format UDZO dist/FootyscopeFG-Mac.dmg
           
       - name: Dosyayı Kaydet
         uses: actions/upload-artifact@v4
         with:
           name: FootyscopeFG-${{ matrix.os }}
-          path: dist/FootyscopeFG*
+          path: |
+            dist/*.exe
+            dist/*.dmg
