@@ -1,0 +1,23 @@
+Last login: Fri Apr 10 22:23:41 on ttys009
+farukgultekin@Faruk-MacBook-Pro ~ % hdiutil create -volname "FootyScopeFG" -srcfolder ./dist/FootyScopeFG.app -ov -format UDZO FootyScopeFG.dmg
+hdiutil: create failed - Böyle bir dosya veya klasör yok
+farukgultekin@Faruk-MacBook-Pro ~ % 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
