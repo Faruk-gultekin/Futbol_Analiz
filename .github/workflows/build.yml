@@ -1,10 +1,13 @@
-name: Windows EXE Derleyici
+name: Cross-Platform Derleyici
 
 on: [push]
 
 jobs:
   build:
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - name: Python Kurulumu
@@ -17,9 +20,13 @@ jobs:
           pip install pyinstaller PyQt6 requests opencv-python numpy python-pptx
       - name: Derleme
         run: |
-          pyinstaller --noconfirm --onefile --windowed --icon "app_icon.ico" --name "FootyscopeFG" --collect-all PyQt6 --add-data "player_asset.png;." --add-data "gk_asset.png;." --add-data "app_icon.ico;." analiz.py
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            pyinstaller --noconfirm --onefile --windowed --icon="app_icon.ico" --name="FootyscopeFG" --collect-all PyQt6 --add-data "player_asset.png;." --add-data "gk_asset.png;." analiz.py
+          else
+            pyinstaller --noconfirm --onefile --windowed --name="FootyscopeFG" --collect-all PyQt6 --add-data "player_asset.png:." --add-data "gk_asset.png:." analiz.py
+          fi
       - name: Dosyayı Kaydet
         uses: actions/upload-artifact@v4
         with:
-          name: FootyscopeFG-Windows-EXE
-          path: dist/FootyscopeFG.exe
+          name: FootyscopeFG-${{ matrix.os }}
+          path: dist/FootyscopeFG*
