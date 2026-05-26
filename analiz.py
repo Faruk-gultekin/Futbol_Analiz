@@ -724,52 +724,72 @@ class MainWindow(QMainWindow):
 
         try:
             import tempfile
-            # HATA ÖNLEYİCİ: İndirme işlemi işletim sisteminin izin verilen Temp klasörüne yapılır
+            import os
+            import sys
+            import subprocess
+            import requests
+
             temp_dir = tempfile.gettempdir()
-            temp_exe = os.path.join(temp_dir, "temp_footyscope_update")
             
-            # Buluttan yeni dosyayı çek
+            # 1. HATA ÖNLEYİCİ: Platforma göre doğru uzantıyı belirle
+            is_win = sys.platform == "win32"
+            temp_file_name = "FootyscopeFG_Update.exe" if is_win else "FootyscopeFG_Update.dmg"
+            temp_file_path = os.path.join(temp_dir, temp_file_name)
+            
+            # Buluttan yeni dosyayı çek (Doğrudan Vercel linkin üzerinden)
             response = requests.get(download_url, stream=True, timeout=60)
-            with open(temp_exe, "wb") as f:
+            with open(temp_file_path, "wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
             
             progress.close()
             
-            # KOD DERLENMİŞ Mİ KONTROLÜ (Exe veya App ise çalışır)
+            # KOD DERLENMİŞ Mİ KONTROLÜ
             if getattr(sys, 'frozen', False):
                 current_file = sys.executable 
                 file_dir = os.path.dirname(current_file)
                 file_name = os.path.basename(current_file)
                 
-                # --- WINDOWS (EXE) OTONOM DEĞİŞİM MOTORU ---
-                if sys.platform == "win32":
+                if is_win:
+                    # --- WINDOWS (EXE) KUSURSUZ DEĞİŞİM MOTORU ---
                     bat_path = os.path.join(temp_dir, "updater.bat")
                     bat_content = f"""@echo off
 timeout /t 2 /nobreak > NUL
 cd /d "{file_dir}"
 del "{file_name}"
-move /y "{temp_exe}" "{file_name}"
+move /y "{temp_file_path}" "{file_name}"
 start "" "{file_name}"
 del "%~f0"
 """
-                    with open(bat_path, "w") as f:
+                    with open(bat_path, "w", encoding="utf-8") as f:
                         f.write(bat_content)
                     subprocess.Popen(bat_path, shell=True)
                 
-                # --- MACOS (APP) OTONOM DEĞİŞİM MOTORU ---
                 else: 
+                    # --- MACOS (DMG) OTONOM DEĞİŞİM MOTORU ---
+                    # Mac'te sys.executable dosyanın çok derinlerindedir, bize ana .app klasörü lazım
+                    app_path = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
+                    app_parent_dir = os.path.dirname(app_path)
+                    
                     sh_path = os.path.join(temp_dir, "updater.sh")
                     sh_content = f"""#!/bin/sh
 sleep 2
-cd "{file_dir}"
-rm -f "{file_name}"
-mv "{temp_exe}" "{file_name}"
-chmod +x "{file_name}"
-open "{file_name}"
+# 1. Eski uygulamayı tamamen sil
+rm -rf "{app_path}"
+# 2. İnen DMG sanal diskini arka planda bağla
+hdiutil attach "{temp_file_path}" -nobrowse -mountpoint /Volumes/FootyscopeUpdate
+# 3. Yeni uygulamayı sanal diskten alıp eski yerine kopyala
+cp -R "/Volumes/FootyscopeUpdate/FootyscopeFG.app" "{app_parent_dir}/"
+# 4. Sanal diski sistemden güvenle çıkar
+hdiutil detach /Volumes/FootyscopeUpdate -force
+# 5. İndirilen DMG kalıntısını temizle
+rm -f "{temp_file_path}"
+# 6. Yeni güncellenmiş uygulamayı başlat
+open "{app_path}"
+# 7. Bu güncelleme scriptini imha et
 rm -- "$0"
 """
-                    with open(sh_path, "w") as f:
+                    with open(sh_path, "w", encoding="utf-8") as f:
                         f.write(sh_content)
                     subprocess.Popen(["sh", sh_path])
                 
@@ -779,7 +799,7 @@ rm -- "$0"
                 
         except Exception as e:
             progress.close()
-            QMessageBox.critical(self, "Hata", f"Güncelleme sunucusuna bağlanılamadı:\n{str(e)}")
+            QMessageBox.critical(self, "Hata", f"Güncelleme işlemi sırasında hata:\n{str(e)}")
 
     def change_language(self, lang_name):
         self.tr = LANG.get(lang_name, LANG["Türkçe"])
