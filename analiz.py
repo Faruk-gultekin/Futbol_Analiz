@@ -1467,7 +1467,7 @@ class LoginDialog(QDialog):
                             server_date_str = response.headers.get('Date')
                             server_time = parsedate_to_datetime(server_date_str) if server_date_str else datetime.now(timezone.utc)
                             
-                            if (server_time - create_time).days >= 30:
+                            if (server_time - create_time).days >= 90:
                                 QMessageBox.critical(self, "Lisans Süresi Doldu 🛑", "Lisans Süreniz Dolmuştur, Lütfen Yöneticiyle İletişime Geçin")
                                 sys.exit()
                                 return
