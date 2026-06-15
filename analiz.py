@@ -1,4 +1,5 @@
 APP_VERSION = "2.4"
+
 import sys
 import os
 import math
@@ -528,48 +529,129 @@ class MainWindow(QMainWindow):
         self.history = []
         self.history_index = -1
         
-        self.board = TacticsBoard(self); self.board.scene.selectionChanged.connect(self.on_selection_changed); self.active_item = None
-        self.is_recording = False; self.record_timer = QTimer(self); self.record_timer.timeout.connect(self.record_frame); self.current_ball_type = 0
-        central = QWidget(); self.setCentralWidget(central); main_layout = QVBoxLayout(central)
-
-        top = QWidget(); top_l = QHBoxLayout(top); top_l.setContentsMargins(5, 5, 5, 5); top_l.setSpacing(8)
+        self.board = TacticsBoard(self)
+        self.board.scene.selectionChanged.connect(self.on_selection_changed)
+        self.active_item = None
         
-        self.g1 = QGroupBox(self.tr["pitch_group"]); l1 = QVBoxLayout(self.g1); l1.setSpacing(4); l1.setContentsMargins(5, 15, 5, 5)
-        row1 = QHBoxLayout(); self.lbl_dir = QLabel(self.tr["dir"]); row1.addWidget(self.lbl_dir); self.c_pitch = QComboBox(); self.c_pitch.addItems(self.tr["pitch_types"]); self.c_pitch.currentIndexChanged.connect(self.refresh_pitch); row1.addWidget(self.c_pitch)
-        row2 = QHBoxLayout(); self.lbl_surf = QLabel(self.tr["surface"]); row2.addWidget(self.lbl_surf); self.c_grass = QComboBox(); self.c_grass.addItems(self.tr["grass_types"]); self.c_grass.currentIndexChanged.connect(self.refresh_pitch); row2.addWidget(self.c_grass)
-        l1.addLayout(row1); l1.addLayout(row2); top_l.addWidget(self.g1)
+        self.is_recording = False
+        self.record_timer = QTimer(self)
+        self.record_timer.timeout.connect(self.record_frame)
+        self.current_ball_type = 0
         
-        self.g_h = QGroupBox(self.tr["home"]); l_h = QGridLayout(self.g_h); l_h.setSpacing(4); l_h.setContentsMargins(5, 15, 5, 5)
-        self.c_f_h = QComboBox(); self.c_f_h.addItem(self.tr["select_tactic"]); self.c_f_h.addItems(["4-4-2", "4-3-3", "3-5-2", "4-1-4-1", "4-2-3-1", "3-4-1-2"])
-        self.lbl_logo_h = QLabel(); self.lbl_logo_h.setFixedSize(24, 24); self.lbl_logo_h.setStyleSheet("border: 1px dashed #b76e79;")
-        self.btn_logo_h = QPushButton("🛡️"); self.btn_logo_h.setFixedWidth(30); self.btn_logo_h.clicked.connect(lambda: self.load_team_logo("home"))
-        self.b_h1 = QPushButton(self.tr["color1"]); self.b_h2 = QPushButton(self.tr["color2"])
-        self.set_btn_color(self.b_h1, "#e74c3c"); self.set_btn_color(self.b_h2, "#ffffff")
-        self.b_h1.clicked.connect(lambda: self.pick_team_color(self.b_h1)); self.b_h2.clicked.connect(lambda: self.pick_team_color(self.b_h2))
-        row_colors_h = QHBoxLayout(); row_colors_h.setSpacing(10); row_colors_h.addWidget(self.b_h1, 1); row_colors_h.addWidget(self.b_h2, 1)
-        self.b_a_h = QPushButton(self.tr["apply"]); self.b_a_h.setProperty("class", "ActionBtn"); self.b_a_h.clicked.connect(lambda: self.apply_formation("home"))
-        l_h.addWidget(self.c_f_h, 0, 0, 1, 2); l_h.addWidget(self.lbl_logo_h, 0, 2); l_h.addWidget(self.btn_logo_h, 0, 3)
-        l_h.addLayout(row_colors_h, 1, 0, 1, 4); l_h.addWidget(self.b_a_h, 2, 0, 1, 4); top_l.addWidget(self.g_h)
+        central = QWidget()
+        self.setCentralWidget(central)
+        main_layout = QVBoxLayout(central)
 
-        self.g_a = QGroupBox(self.tr["away"]); l_a = QGridLayout(self.g_a); l_a.setSpacing(4); l_a.setContentsMargins(5, 15, 5, 5)
-        self.c_f_a = QComboBox(); self.c_f_a.addItem(self.tr["select_tactic"]); self.c_f_a.addItems(["4-4-2", "4-3-3", "3-5-2", "4-1-4-1", "4-2-3-1", "3-4-1-2"])
-        self.lbl_logo_a = QLabel(); self.lbl_logo_a.setFixedSize(24, 24); self.lbl_logo_a.setStyleSheet("border: 1px dashed #b76e79;")
-        self.btn_logo_a = QPushButton("🛡️"); self.btn_logo_a.setFixedWidth(30); self.btn_logo_a.clicked.connect(lambda: self.load_team_logo("away"))
-        self.b_a1 = QPushButton(self.tr["color1"]); self.b_a2 = QPushButton(self.tr["color2"])
-        self.set_btn_color(self.b_a1, "#3498db"); self.set_btn_color(self.b_a2, "#2c3e50")
-        self.b_a1.clicked.connect(lambda: self.pick_team_color(self.b_a1)); self.b_a2.clicked.connect(lambda: self.pick_team_color(self.b_a2))
-        row_colors_a = QHBoxLayout(); row_colors_a.setSpacing(10); row_colors_a.addWidget(self.b_a1, 1); row_colors_a.addWidget(self.b_a2, 1)
-        self.b_a_a = QPushButton(self.tr["apply"]); self.b_a_a.setProperty("class", "ActionBtn"); self.b_a_a.clicked.connect(lambda: self.apply_formation("away"))
-        l_a.addWidget(self.c_f_a, 0, 0, 1, 2); l_a.addWidget(self.lbl_logo_a, 0, 2); l_a.addWidget(self.btn_logo_a, 0, 3)
-        l_a.addLayout(row_colors_a, 1, 0, 1, 4); l_a.addWidget(self.b_a_a, 2, 0, 1, 4); top_l.addWidget(self.g_a)
-
-        self.g_o = QGroupBox(self.tr["management"]); l_o = QGridLayout(self.g_o); l_o.setSpacing(4); l_o.setContentsMargins(5, 15, 5, 5)
-        self.b_s = QPushButton(self.tr["save"]); self.b_s.clicked.connect(self.save_tactics)
-        self.b_p = QPushButton(self.tr["pptx"]); self.b_p.clicked.connect(self.export_to_pptx)
-        self.b_pdf = QPushButton(self.tr["pdf"]); self.b_pdf.clicked.connect(self.export_to_pdf)
-        self.b_logout = QPushButton(self.tr["logout"]); self.b_logout.setProperty("class", "DangerBtn"); self.b_logout.clicked.connect(self.logout)
+        top = QWidget()
+        top_l = QHBoxLayout(top)
+        top_l.setContentsMargins(5, 5, 5, 5)
+        top_l.setSpacing(8)
         
-        self.b_v = QPushButton(self.tr["record"]); self.b_v.setProperty("class", "DangerBtn"); self.b_v.clicked.connect(self.toggle_recording)
+        self.g1 = QGroupBox(self.tr["pitch_group"])
+        l1 = QVBoxLayout(self.g1)
+        l1.setSpacing(4)
+        l1.setContentsMargins(5, 15, 5, 5)
+        row1 = QHBoxLayout()
+        self.lbl_dir = QLabel(self.tr["dir"])
+        row1.addWidget(self.lbl_dir)
+        self.c_pitch = QComboBox()
+        self.c_pitch.addItems(self.tr["pitch_types"])
+        self.c_pitch.currentIndexChanged.connect(self.refresh_pitch)
+        row1.addWidget(self.c_pitch)
+        row2 = QHBoxLayout()
+        self.lbl_surf = QLabel(self.tr["surface"])
+        row2.addWidget(self.lbl_surf)
+        self.c_grass = QComboBox()
+        self.c_grass.addItems(self.tr["grass_types"])
+        self.c_grass.currentIndexChanged.connect(self.refresh_pitch)
+        row2.addWidget(self.c_grass)
+        l1.addLayout(row1)
+        l1.addLayout(row2)
+        top_l.addWidget(self.g1)
+        
+        self.g_h = QGroupBox(self.tr["home"])
+        l_h = QGridLayout(self.g_h)
+        l_h.setSpacing(4)
+        l_h.setContentsMargins(5, 15, 5, 5)
+        self.c_f_h = QComboBox()
+        self.c_f_h.addItem(self.tr["select_tactic"])
+        self.c_f_h.addItems(["4-4-2", "4-3-3", "3-5-2", "4-1-4-1", "4-2-3-1", "3-4-1-2"])
+        self.lbl_logo_h = QLabel()
+        self.lbl_logo_h.setFixedSize(24, 24)
+        self.lbl_logo_h.setStyleSheet("border: 1px dashed #b76e79;")
+        self.btn_logo_h = QPushButton("🛡️")
+        self.btn_logo_h.setFixedWidth(30)
+        self.btn_logo_h.clicked.connect(lambda: self.load_team_logo("home"))
+        self.b_h1 = QPushButton(self.tr["color1"])
+        self.b_h2 = QPushButton(self.tr["color2"])
+        self.set_btn_color(self.b_h1, "#e74c3c")
+        self.set_btn_color(self.b_h2, "#ffffff")
+        self.b_h1.clicked.connect(lambda: self.pick_team_color(self.b_h1))
+        self.b_h2.clicked.connect(lambda: self.pick_team_color(self.b_h2))
+        row_colors_h = QHBoxLayout()
+        row_colors_h.setSpacing(10)
+        row_colors_h.addWidget(self.b_h1, 1)
+        row_colors_h.addWidget(self.b_h2, 1)
+        self.b_a_h = QPushButton(self.tr["apply"])
+        self.b_a_h.setProperty("class", "ActionBtn")
+        self.b_a_h.clicked.connect(lambda: self.apply_formation("home"))
+        l_h.addWidget(self.c_f_h, 0, 0, 1, 2)
+        l_h.addWidget(self.lbl_logo_h, 0, 2)
+        l_h.addWidget(self.btn_logo_h, 0, 3)
+        l_h.addLayout(row_colors_h, 1, 0, 1, 4)
+        l_h.addWidget(self.b_a_h, 2, 0, 1, 4)
+        top_l.addWidget(self.g_h)
+
+        self.g_a = QGroupBox(self.tr["away"])
+        l_a = QGridLayout(self.g_a)
+        l_a.setSpacing(4)
+        l_a.setContentsMargins(5, 15, 5, 5)
+        self.c_f_a = QComboBox()
+        self.c_f_a.addItem(self.tr["select_tactic"])
+        self.c_f_a.addItems(["4-4-2", "4-3-3", "3-5-2", "4-1-4-1", "4-2-3-1", "3-4-1-2"])
+        self.lbl_logo_a = QLabel()
+        self.lbl_logo_a.setFixedSize(24, 24)
+        self.lbl_logo_a.setStyleSheet("border: 1px dashed #b76e79;")
+        self.btn_logo_a = QPushButton("🛡️")
+        self.btn_logo_a.setFixedWidth(30)
+        self.btn_logo_a.clicked.connect(lambda: self.load_team_logo("away"))
+        self.b_a1 = QPushButton(self.tr["color1"])
+        self.b_a2 = QPushButton(self.tr["color2"])
+        self.set_btn_color(self.b_a1, "#3498db")
+        self.set_btn_color(self.b_a2, "#2c3e50")
+        self.b_a1.clicked.connect(lambda: self.pick_team_color(self.b_a1))
+        self.b_a2.clicked.connect(lambda: self.pick_team_color(self.b_a2))
+        row_colors_a = QHBoxLayout()
+        row_colors_a.setSpacing(10)
+        row_colors_a.addWidget(self.b_a1, 1)
+        row_colors_a.addWidget(self.b_a2, 1)
+        self.b_a_a = QPushButton(self.tr["apply"])
+        self.b_a_a.setProperty("class", "ActionBtn")
+        self.b_a_a.clicked.connect(lambda: self.apply_formation("away"))
+        l_a.addWidget(self.c_f_a, 0, 0, 1, 2)
+        l_a.addWidget(self.lbl_logo_a, 0, 2)
+        l_a.addWidget(self.btn_logo_a, 0, 3)
+        l_a.addLayout(row_colors_a, 1, 0, 1, 4)
+        l_a.addWidget(self.b_a_a, 2, 0, 1, 4)
+        top_l.addWidget(self.g_a)
+
+        self.g_o = QGroupBox(self.tr["management"])
+        l_o = QGridLayout(self.g_o)
+        l_o.setSpacing(4)
+        l_o.setContentsMargins(5, 15, 5, 5)
+        self.b_s = QPushButton(self.tr["save"])
+        self.b_s.clicked.connect(self.save_tactics)
+        self.b_p = QPushButton(self.tr["pptx"])
+        self.b_p.clicked.connect(self.export_to_pptx)
+        self.b_pdf = QPushButton(self.tr["pdf"])
+        self.b_pdf.clicked.connect(self.export_to_pdf)
+        self.b_logout = QPushButton(self.tr["logout"])
+        self.b_logout.setProperty("class", "DangerBtn")
+        self.b_logout.clicked.connect(self.logout)
+        
+        self.b_v = QPushButton(self.tr["record"])
+        self.b_v.setProperty("class", "DangerBtn")
+        self.b_v.clicked.connect(self.toggle_recording)
         
         self.lbl_license = QLabel("⏳ Süre Çekiliyor")
         self.lbl_license.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -586,67 +668,158 @@ class MainWindow(QMainWindow):
         l_o.addWidget(self.b_v, 1, 0, 1, 2)
         l_o.addWidget(self.lbl_license, 1, 2, 1, 2) 
         l_o.addWidget(self.c_lang, 2, 0, 1, 4)
-        top_l.addWidget(self.g_o); main_layout.addWidget(top)
+        top_l.addWidget(self.g_o)
+        main_layout.addWidget(top)
 
         h_cont = QHBoxLayout()
-        left_scroll = QScrollArea(); left_scroll.setWidgetResizable(True); left_scroll.setFixedWidth(240)
-        left = QWidget(); left_l = QVBoxLayout(left); left_l.setContentsMargins(5, 5, 5, 5)
+        left_scroll = QScrollArea()
+        left_scroll.setWidgetResizable(True)
+        left_scroll.setFixedWidth(240)
+        left = QWidget()
+        left_l = QVBoxLayout(left)
+        left_l.setContentsMargins(5, 5, 5, 5)
         
-        self.g_t = QGroupBox(self.tr["tools"]); v_t = QVBoxLayout(self.g_t); v_t.setSpacing(4); self.grp = QButtonGroup(self)
+        self.g_t = QGroupBox(self.tr["tools"])
+        v_t = QVBoxLayout(self.g_t)
+        v_t.setSpacing(4)
+        self.grp = QButtonGroup(self)
         self.btn_tools = []
         tools_data = [("tool_select", 0), ("tool_h_man", 7), ("tool_a_man", 8), ("tool_arr_s", 1), ("tool_arr_c", 2), ("tool_rect", 4), ("tool_circ", 5), ("tool_text", 3), ("tool_ball", 6)]
         for key, m in tools_data:
-            b = QPushButton(self.tr[key]); b.setCheckable(True); self.grp.addButton(b); b.clicked.connect(lambda ch, m=m: self.set_tool_mode(m))
-            v_t.addWidget(b); self.btn_tools.append((b, key))
+            b = QPushButton(self.tr[key])
+            b.setCheckable(True)
+            self.grp.addButton(b)
+            b.clicked.connect(lambda ch, m=m: self.set_tool_mode(m))
+            v_t.addWidget(b)
+            self.btn_tools.append((b, key))
             
-        self.c_ball = QComboBox(); self.c_ball.addItems(self.tr["balls"]); self.c_ball.currentIndexChanged.connect(self.set_ball_type); v_t.addWidget(self.c_ball)
-        self.grp.buttons()[0].setChecked(True); left_l.addWidget(self.g_t)
+        self.c_ball = QComboBox()
+        self.c_ball.addItems(self.tr["balls"])
+        self.c_ball.currentIndexChanged.connect(self.set_ball_type)
+        v_t.addWidget(self.c_ball)
+        self.grp.buttons()[0].setChecked(True)
+        left_l.addWidget(self.g_t)
 
-        self.g_e = QGroupBox(self.tr["edit_obj"]); self.g_e.setEnabled(False); self.v_e = QFormLayout(self.g_e); self.v_e.setVerticalSpacing(4)
-        self.e_n = QLineEdit(); self.e_n.textChanged.connect(self.update_obj_name)
-        self.lbl_col_target = QLabel(self.tr["color_target"]); self.color_target = QComboBox(); self.color_target.addItems([self.tr["col_target_jersey"], self.tr["col_target_text"]])
-        color_layout = QHBoxLayout(); quick_colors = ["#ffffff", "#e74c3c", "#3498db", "#f1c40f", "#2ecc71", "#000000"]
+        self.g_e = QGroupBox(self.tr["edit_obj"])
+        self.g_e.setEnabled(False)
+        self.v_e = QFormLayout(self.g_e)
+        self.v_e.setVerticalSpacing(4)
+        self.e_n = QLineEdit()
+        self.e_n.textChanged.connect(self.update_obj_name)
+        self.lbl_col_target = QLabel(self.tr["color_target"])
+        self.color_target = QComboBox()
+        self.color_target.addItems([self.tr["col_target_jersey"], self.tr["col_target_text"]])
+        color_layout = QHBoxLayout()
+        quick_colors = ["#ffffff", "#e74c3c", "#3498db", "#f1c40f", "#2ecc71", "#000000"]
         for qc in quick_colors:
-            btn_c = QPushButton(); btn_c.setFixedSize(20, 20); btn_c.setStyleSheet(f"background-color: {qc}; border-radius: 10px; border: 1px solid #d4af37;")
-            btn_c.clicked.connect(lambda checked, col=qc: self.apply_quick_color(col)); color_layout.addWidget(btn_c)
+            btn_c = QPushButton()
+            btn_c.setFixedSize(20, 20)
+            btn_c.setStyleSheet(f"background-color: {qc}; border-radius: 10px; border: 1px solid #d4af37;")
+            btn_c.clicked.connect(lambda checked, col=qc: self.apply_quick_color(col))
+            color_layout.addWidget(btn_c)
             
-        self.b_c = QPushButton(self.tr["other"]); self.b_c.clicked.connect(self.change_obj_color); color_layout.addWidget(self.b_c)
-        self.s_s = QSlider(Qt.Orientation.Horizontal); self.s_s.setRange(30, 250); self.s_s.setValue(100); self.s_s.valueChanged.connect(self.update_scale)
-        self.s_r = QSlider(Qt.Orientation.Horizontal); self.s_r.setRange(0, 360); self.s_r.valueChanged.connect(self.update_rotation)
-        self.s_c = QSlider(Qt.Orientation.Horizontal); self.s_c.setRange(-100, 100); self.s_c.valueChanged.connect(self.update_arrow_curve)
-        m_l = QHBoxLayout(); self.b_m_h = QPushButton(self.tr["mir_h"]); self.b_m_h.clicked.connect(self.update_mirror_h)
-        self.b_m_v = QPushButton(self.tr["mir_v"]); self.b_m_v.clicked.connect(self.update_mirror_v); m_l.addWidget(self.b_m_h); m_l.addWidget(self.b_m_v)
+        self.b_c = QPushButton(self.tr["other"])
+        self.b_c.clicked.connect(self.change_obj_color)
+        color_layout.addWidget(self.b_c)
+        self.s_s = QSlider(Qt.Orientation.Horizontal)
+        self.s_s.setRange(30, 250)
+        self.s_s.setValue(100)
+        self.s_s.valueChanged.connect(self.update_scale)
+        self.s_r = QSlider(Qt.Orientation.Horizontal)
+        self.s_r.setRange(0, 360)
+        self.s_r.valueChanged.connect(self.update_rotation)
+        self.s_c = QSlider(Qt.Orientation.Horizontal)
+        self.s_c.setRange(-100, 100)
+        self.s_c.valueChanged.connect(self.update_arrow_curve)
+        m_l = QHBoxLayout()
+        self.b_m_h = QPushButton(self.tr["mir_h"])
+        self.b_m_h.clicked.connect(self.update_mirror_h)
+        self.b_m_v = QPushButton(self.tr["mir_v"])
+        self.b_m_v.clicked.connect(self.update_mirror_v)
+        m_l.addWidget(self.b_m_h)
+        m_l.addWidget(self.b_m_v)
         
-        self.btn_replace_img = QPushButton(self.tr["replace_img"]); self.btn_replace_img.setProperty("class", "ActionBtn"); self.btn_replace_img.clicked.connect(self.replace_player_image)
-        self.btn_del = QPushButton(self.tr["delete_sel"]); self.btn_del.setProperty("class", "DangerBtn"); self.btn_del.clicked.connect(self.delete_active_item)
+        self.btn_replace_img = QPushButton(self.tr["replace_img"])
+        self.btn_replace_img.setProperty("class", "ActionBtn")
+        self.btn_replace_img.clicked.connect(self.replace_player_image)
+        self.btn_del = QPushButton(self.tr["delete_sel"])
+        self.btn_del.setProperty("class", "DangerBtn")
+        self.btn_del.clicked.connect(self.delete_active_item)
 
-        self.lbl_name = QLabel(self.tr["name"]); self.v_e.addRow(self.lbl_name, self.e_n); self.v_e.addRow(self.lbl_col_target, self.color_target)
-        self.lbl_col = QLabel(self.tr["color"]); self.v_e.addRow(self.lbl_col, color_layout); self.lbl_sz = QLabel(self.tr["size"]); self.v_e.addRow(self.lbl_sz, self.s_s)
-        self.lbl_ang = QLabel(self.tr["angle"]); self.v_e.addRow(self.lbl_ang, self.s_r); self.lbl_mir = QLabel(self.tr["mirror"]); self.v_e.addRow(self.lbl_mir, m_l)
-        self.lbl_crv = QLabel(self.tr["curve"]); self.v_e.addRow(self.lbl_crv, self.s_c); self.v_e.addRow("", self.btn_replace_img); self.v_e.addRow("", self.btn_del)
-        left_l.addWidget(self.g_e); left_l.addStretch(); left_scroll.setWidget(left)
-        h_cont.addWidget(left_scroll); h_cont.addWidget(self.board, 1)
+        self.lbl_name = QLabel(self.tr["name"])
+        self.v_e.addRow(self.lbl_name, self.e_n)
+        self.v_e.addRow(self.lbl_col_target, self.color_target)
+        self.lbl_col = QLabel(self.tr["color"])
+        self.v_e.addRow(self.lbl_col, color_layout)
+        self.lbl_sz = QLabel(self.tr["size"])
+        self.v_e.addRow(self.lbl_sz, self.s_s)
+        self.lbl_ang = QLabel(self.tr["angle"])
+        self.v_e.addRow(self.lbl_ang, self.s_r)
+        self.lbl_mir = QLabel(self.tr["mirror"])
+        self.v_e.addRow(self.lbl_mir, m_l)
+        self.lbl_crv = QLabel(self.tr["curve"])
+        self.v_e.addRow(self.lbl_crv, self.s_c)
+        self.v_e.addRow("", self.btn_replace_img)
+        self.v_e.addRow("", self.btn_del)
+        left_l.addWidget(self.g_e)
+        left_l.addStretch()
+        left_scroll.setWidget(left)
+        h_cont.addWidget(left_scroll)
+        h_cont.addWidget(self.board, 1)
 
-        self.tabs = QTabWidget(); self.tabs.setFixedWidth(280)
-        t_m = QWidget(); l_m = QVBoxLayout(t_m); l_m.setContentsMargins(5,5,5,5)
-        self.m_l = QListWidget(); self.m_l.setViewMode(QListWidget.ViewMode.IconMode); self.m_l.setIconSize(QSize(60, 60)); self.m_l.itemClicked.connect(self.apply_memory_image)
-        self.m_l.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu); self.m_l.customContextMenuRequested.connect(self.show_memory_menu)
-        l_m.addWidget(self.m_l); self.b_u_img = QPushButton(self.tr["add_pc"]); self.b_u_img.setProperty("class", "ActionBtn"); self.b_u_img.clicked.connect(self.upload_to_memory); l_m.addWidget(self.b_u_img); self.tabs.addTab(t_m, self.tr["tab_img"])
+        self.tabs = QTabWidget()
+        self.tabs.setFixedWidth(280)
+        t_m = QWidget()
+        l_m = QVBoxLayout(t_m)
+        l_m.setContentsMargins(5,5,5,5)
+        self.m_l = QListWidget()
+        self.m_l.setViewMode(QListWidget.ViewMode.IconMode)
+        self.m_l.setIconSize(QSize(60, 60))
+        self.m_l.itemClicked.connect(self.apply_memory_image)
+        self.m_l.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.m_l.customContextMenuRequested.connect(self.show_memory_menu)
+        l_m.addWidget(self.m_l)
+        self.b_u_img = QPushButton(self.tr["add_pc"])
+        self.b_u_img.setProperty("class", "ActionBtn")
+        self.b_u_img.clicked.connect(self.upload_to_memory)
+        l_m.addWidget(self.b_u_img)
+        self.tabs.addTab(t_m, self.tr["tab_img"])
         
-        t_t = QWidget(); l_t = QVBoxLayout(t_t); l_t.setContentsMargins(5,5,5,5)
-        self.t_l = QListWidget(); self.t_l.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu); self.t_l.customContextMenuRequested.connect(self.show_tactics_menu)
-        l_t.addWidget(self.t_l); self.b_l_t = QPushButton(self.tr["load"]); self.b_l_t.clicked.connect(self.load_selected_tactic); l_t.addWidget(self.b_l_t); self.tabs.addTab(t_t, self.tr["tab_tac"])
+        t_t = QWidget()
+        l_t = QVBoxLayout(t_t)
+        l_t.setContentsMargins(5,5,5,5)
+        self.t_l = QListWidget()
+        self.t_l.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.t_l.customContextMenuRequested.connect(self.show_tactics_menu)
+        l_t.addWidget(self.t_l)
+        self.b_l_t = QPushButton(self.tr["load"])
+        self.b_l_t.clicked.connect(self.load_selected_tactic)
+        l_t.addWidget(self.b_l_t)
+        self.tabs.addTab(t_t, self.tr["tab_tac"])
         
-        t_v = QWidget(); l_v = QVBoxLayout(t_v); l_v.setContentsMargins(5,5,5,5)
-        self.v_l = QListWidget(); self.v_l.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu); self.v_l.customContextMenuRequested.connect(self.show_video_menu); self.v_l.itemDoubleClicked.connect(self.open_video)
-        l_v.addWidget(self.v_l); self.b_v_u = QPushButton(self.tr["add_vid"]); self.b_v_u.setProperty("class", "ActionBtn"); self.b_v_u.clicked.connect(self.upload_video); l_v.addWidget(self.b_v_u); self.tabs.addTab(t_v, self.tr["tab_vid"])
+        t_v = QWidget()
+        l_v = QVBoxLayout(t_v)
+        l_v.setContentsMargins(5,5,5,5)
+        self.v_l = QListWidget()
+        self.v_l.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.v_l.customContextMenuRequested.connect(self.show_video_menu)
+        self.v_l.itemDoubleClicked.connect(self.open_video)
+        l_v.addWidget(self.v_l)
+        self.b_v_u = QPushButton(self.tr["add_vid"])
+        self.b_v_u.setProperty("class", "ActionBtn")
+        self.b_v_u.clicked.connect(self.upload_video)
+        l_v.addWidget(self.b_v_u)
+        self.tabs.addTab(t_v, self.tr["tab_vid"])
 
-        h_cont.addWidget(self.tabs); main_layout.addLayout(h_cont)
+        h_cont.addWidget(self.tabs)
+        main_layout.addLayout(h_cont)
         
         QShortcut(QKeySequence("Ctrl+Z"), self).activated.connect(self.undo_action)
         QShortcut(QKeySequence("Ctrl+S"), self).activated.connect(self.save_tactics)
         
-        self.load_memory_images(); self.load_tactics_list(); self.load_videos_list()
+        self.load_memory_images()
+        self.load_tactics_list()
+        self.load_videos_list()
         self.push_state()
         self.showMaximized()
 
@@ -686,14 +859,9 @@ class MainWindow(QMainWindow):
         except Exception:
             self.lbl_license.setText("Bağlantı Yok")
 
-    # Dosyanın en tepesinde:
-APP_VERSION = "2.4"
-
-# Sonra check_updates fonksiyonunun içinde:
-def check_updates(self):
-    current_version = APP_VERSION # Sabit rakam yerine yukarıdaki değişkeni kullan!
-        
-    try:
+    def check_updates(self):
+        current_version = APP_VERSION
+        try:
             url = "https://firestore.googleapis.com/v1/projects/footyscopefg-df329/databases/(default)/documents/system/updates"
             response = requests.get(url, timeout=5)
             
@@ -712,14 +880,6 @@ def check_updates(self):
                 else:
                     download_url = fields.get('downloadUrlMac', {}).get('stringValue', '')
                 
-                QMessageBox.information(
-                    self, 
-                    "Sistem Röntgeni 🔍", 
-                    f"Koddaki Sürüm: {current_version}\n"
-                    f"Firebase Sürümü: {latest_version}\n"
-                    f"İndirme Linki: {download_url}"
-                )
-
                 if current_version != latest_version and download_url:
                     reply = QMessageBox.question(
                         self, 
@@ -732,7 +892,7 @@ def check_updates(self):
             else:
                 QMessageBox.warning(self, "Hata", f"Firebase HTTP Kodu: {response.status_code}")
                 
-    except Exception as e:
+        except Exception as e:
             QMessageBox.critical(self, "Çökme Yaşandı", f"Hata detayı:\n{str(e)}")
 
     def perform_autonomous_update(self, download_url):
