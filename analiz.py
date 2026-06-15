@@ -1,4 +1,4 @@
-APP_VERSION = "2.3"
+APP_VERSION = "2.4"
 import sys
 import os
 import math
@@ -673,7 +673,7 @@ class MainWindow(QMainWindow):
                 server_time = parsedate_to_datetime(server_date_str) if server_date_str else datetime.now(timezone.utc)
                 
                 days_passed = (server_time - create_time).days
-                remaining = 30 - days_passed
+                remaining = 180 - days_passed
                 if remaining < 0: remaining = 0
                 
                 self.lbl_license.setText(f"⏳ Lisans: {remaining} Gün")
@@ -686,10 +686,14 @@ class MainWindow(QMainWindow):
         except Exception:
             self.lbl_license.setText("Bağlantı Yok")
 
-    def check_updates(self):
-        current_version = "1.0" 
+    # Dosyanın en tepesinde:
+APP_VERSION = "2.4"
+
+# Sonra check_updates fonksiyonunun içinde:
+def check_updates(self):
+    current_version = APP_VERSION # Sabit rakam yerine yukarıdaki değişkeni kullan!
         
-        try:
+    try:
             url = "https://firestore.googleapis.com/v1/projects/footyscopefg-df329/databases/(default)/documents/system/updates"
             response = requests.get(url, timeout=5)
             
@@ -728,7 +732,7 @@ class MainWindow(QMainWindow):
             else:
                 QMessageBox.warning(self, "Hata", f"Firebase HTTP Kodu: {response.status_code}")
                 
-        except Exception as e:
+    except Exception as e:
             QMessageBox.critical(self, "Çökme Yaşandı", f"Hata detayı:\n{str(e)}")
 
     def perform_autonomous_update(self, download_url):
@@ -1466,8 +1470,8 @@ class LoginDialog(QDialog):
                             create_time = datetime.strptime(create_time_str, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
                             server_date_str = response.headers.get('Date')
                             server_time = parsedate_to_datetime(server_date_str) if server_date_str else datetime.now(timezone.utc)
-                            
-                            if (server_time - create_time).days >= 90:
+                     
+                            if (server_time - create_time).days >= 180:
                                 QMessageBox.critical(self, "Lisans Süresi Doldu 🛑", "Lisans Süreniz Dolmuştur, Lütfen Yöneticiyle İletişime Geçin")
                                 sys.exit()
                                 return
@@ -1507,7 +1511,7 @@ def attempt_auto_login():
                             server_date_str = resp.headers.get('Date')
                             server_time = parsedate_to_datetime(server_date_str) if server_date_str else datetime.now(timezone.utc)
                             
-                            if (server_time - create_time).days >= 30:
+                            if (server_time - create_time).days >= 180:
                                 return None
                         return saved_email
         except:
