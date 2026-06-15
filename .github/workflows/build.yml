@@ -1,8 +1,6 @@
 name: Cross-Platform Derleyici
-on: [push, workflow_dispatch]
-name: Cross-Platform Derleyici
 
-on: [push]
+on: [push, workflow_dispatch]
 
 jobs:
   build:
@@ -31,9 +29,7 @@ jobs:
       - name: Mac İçin Derleme ve DMG Oluşturma
         if: matrix.os == 'macos-latest'
         run: |
-          # PyInstaller ile ana yapıyı kuruyoruz
           pyinstaller --noconfirm --windowed --icon="app_icon.icns" --name="FootyscopeFG" --add-data "player_asset.png:." --add-data "gk_asset.png:." analiz.py
-          # DMG paketleme işlemi
           hdiutil create -volname "FootyscopeFG" -srcfolder dist/FootyscopeFG.app -ov -format UDZO dist/FootyscopeFG-Mac.dmg
           
       - name: Dosyaları Kaydet
