@@ -1,0 +1,21 @@
+Last login: Sun Apr 12 20:38:53 on ttys008
+farukgultekin@Faruk-MacBook-Pro Futbol_Analiz % python3 -m PyInstaller --clean --noconsole --windowed --add-data "player_asset..png:." --add-data "gk_asset.png:." --add-data "icon.icns:." --icon="icon.icns" analiz.py
+/Library/Frameworks/Python.framework/Versions/3.14/bin/python3: No module named PyInstaller
+farukgultekin@Faruk-MacBook-Pro Futbol_Analiz % 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
