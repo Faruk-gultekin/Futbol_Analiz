@@ -1,5 +1,4 @@
-APP_VERSION = "2.4"
-
+APP_VERSION = "2.5"
 import sys
 import os
 import math
@@ -29,7 +28,7 @@ try:
     import cv2
     import numpy as np
 except ImportError:
-    print("Kütüphaneler eksik. Terminale: pip install python-pptx opencv-python numpy Pillow")
+    pass
 
 import ctypes
 
@@ -826,38 +825,29 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(1500, self.check_updates)
         QTimer.singleShot(100, self.fetch_remaining_days)
 
-    def fetch_remaining_days(self):
-        if not self.user_email:
-            self.lbl_license.setText("Süre Yok")
-            return
-        try:
-            url = f"https://firestore.googleapis.com/v1/projects/footyscopefg-df329/databases/(default)/documents/users/{self.user_email}"
-            resp = requests.get(url, timeout=5)
-            if resp.status_code == 200:
-                db_data = resp.json()
-                create_time_str = db_data.get("createTime", "")
-                if not create_time_str:
-                    self.lbl_license.setText("Hata")
-                    return
-                
-                create_time_str = create_time_str.split(".")[0].replace("Z", "")
-                create_time = datetime.strptime(create_time_str, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
-                server_date_str = resp.headers.get('Date')
-                server_time = parsedate_to_datetime(server_date_str) if server_date_str else datetime.now(timezone.utc)
-                
-                days_passed = (server_time - create_time).days
-                remaining = 180 - days_passed
-                if remaining < 0: remaining = 0
-                
-                self.lbl_license.setText(f"⏳ Lisans: {remaining} Gün")
-                if remaining <= 5:
-                    self.lbl_license.setStyleSheet("background-color: #4a121d; color: #ff4d4d; border: 1px solid #ff4d4d; border-radius: 4px; padding: 4px; font-weight: bold; font-size: 11px;")
-                else:
-                    self.lbl_license.setStyleSheet("background-color: #2b0a11; color: #d4af37; border: 1px solid #b76e79; border-radius: 4px; padding: 4px; font-weight: bold; font-size: 11px;")
-            else:
-                self.lbl_license.setText("Hata")
-        except Exception:
-            self.lbl_license.setText("Bağlantı Yok")
+    def on_selection_changed(self):
+        items = self.board.scene.selectedItems()
+        if items:
+            self.active_item = items[0]
+            if isinstance(self.active_item, QGraphicsTextItem) and isinstance(self.active_item.parentItem(), Player):
+                self.active_item = self.active_item.parentItem()
+            self.g_e.setEnabled(True)
+            self.s_c.setVisible(isinstance(self.active_item, Arrow) and self.active_item.is_curved)
+            self.btn_replace_img.setVisible(isinstance(self.active_item, Player))
+            self.lbl_col_target.setVisible(isinstance(self.active_item, Player))
+            self.color_target.setVisible(isinstance(self.active_item, Player))
+            self.e_n.setText(self.active_item.name_tag.toPlainText() if isinstance(self.active_item, Player) else "")
+            
+            if isinstance(self.active_item, (Player, Football, CustomRect, CustomEllipse, EditableText)):
+                self.s_s.blockSignals(True)
+                self.s_s.setValue(int(self.active_item.scale() * 100))
+                self.s_s.blockSignals(False)
+            if isinstance(self.active_item, (Player, EditableText)):
+                self.s_r.blockSignals(True)
+                self.s_r.setValue(int(self.active_item.rotation()))
+                self.s_r.blockSignals(False)
+        else:
+            self.g_e.setEnabled(False)
 
     def check_updates(self):
         current_version = APP_VERSION
@@ -893,7 +883,7 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "Hata", f"Firebase HTTP Kodu: {response.status_code}")
                 
         except Exception as e:
-            QMessageBox.critical(self, "Çökme Yaşandı", f"Hata detayı:\n{str(e)}")
+            pass # Bağlantı hatalarında sessiz kal
 
     def perform_autonomous_update(self, download_url):
         from PyQt6.QtWidgets import QProgressDialog
@@ -910,7 +900,6 @@ class MainWindow(QMainWindow):
         temp_file_path = os.path.join(temp_dir, temp_file_name)
 
         try:
-            # --- 1. ÇELİK YELEK: GOOGLE DRIVE LİNK DÜZELTİCİ ---
             if "drive.google.com" in download_url:
                 file_id = ""
                 if "id=" in download_url:
@@ -965,14 +954,7 @@ class MainWindow(QMainWindow):
                 
                 if is_win:
                     bat_path = os.path.join(temp_dir, "updater.bat")
-                    bat_content = f"""@echo off
-timeout /t 2 /nobreak > NUL
-cd /d "{file_dir}"
-del "{file_name}"
-move /y "{temp_file_path}" "{file_name}"
-start "" "{file_name}"
-del "%~f0"
-"""
+                    bat_content = f"""@echo off\ntimeout /t 2 /nobreak > NUL\ncd /d "{file_dir}"\ndel "{file_name}"\nmove /y "{temp_file_path}" "{file_name}"\nstart "" "{file_name}"\ndel "%~f0"\n"""
                     with open(bat_path, "w", encoding="utf-8") as f:
                         f.write(bat_content)
                     subprocess.Popen(bat_path, shell=True)
@@ -981,30 +963,10 @@ del "%~f0"
                     app_parent_dir = os.path.dirname(app_path)
                     sh_path = os.path.join(temp_dir, "updater.sh")
                     
-                    # --- 2. ÇELİK YELEK: GÜVENLİ MAC GÜNCELLEME BETİĞİ ---
-                    sh_content = f"""#!/bin/sh
-sleep 2
-# Inen dosya gercekten saglam bir ZIP mi kontrol et
-if unzip -t "{temp_file_path}" > /dev/null 2>&1; then
-    # Saglamsa eskiyi sil
-    rm -rf "{app_path}"
-    # Yenisini cikar
-    unzip -o -q "{temp_file_path}" -d "{app_parent_dir}"
-    rm -f "{temp_file_path}"
-    # Mac'in Geliştirici Karantinasını kaldır (Uygulama direk açılsın diye)
-    xattr -cr "{app_path}"
-    # Uygulamayi ac
-    open "{app_path}"
-else
-    # Dosya bozuksa eskiyi KESINLIKLE SILME!
-    echo "Indirilen dosya bozuk veya Google Drive engeline takildi." > "{app_parent_dir}/GUNCELLEME_HATASI.txt"
-fi
-rm -- "$0"
-"""
+                    sh_content = f"""#!/bin/sh\nsleep 2\nif unzip -t "{temp_file_path}" > /dev/null 2>&1; then\n    rm -rf "{app_path}"\n    unzip -o -q "{temp_file_path}" -d "{app_parent_dir}"\n    rm -f "{temp_file_path}"\n    xattr -cr "{app_path}"\n    open "{app_path}"\nelse\n    echo "Indirilen dosya bozuk veya Google Drive engeline takildi." > "{app_parent_dir}/GUNCELLEME_HATASI.txt"\nfi\nrm -- "$0"\n"""
                     with open(sh_path, "w", encoding="utf-8") as f:
                         f.write(sh_content)
                     
-                    # Script'e çalışma izni ver ve başlat
                     os.chmod(sh_path, 0o755)
                     subprocess.Popen(["sh", sh_path])
                 
@@ -1014,6 +976,39 @@ rm -- "$0"
                 
         except Exception as e:
             QMessageBox.critical(self, "Hata", f"Güncelleme hatası:\n{str(e)}")
+
+    def fetch_remaining_days(self):
+        if not self.user_email:
+            self.lbl_license.setText("Süre Yok")
+            return
+        try:
+            url = f"https://firestore.googleapis.com/v1/projects/footyscopefg-df329/databases/(default)/documents/users/{self.user_email}"
+            resp = requests.get(url, timeout=5)
+            if resp.status_code == 200:
+                db_data = resp.json()
+                create_time_str = db_data.get("createTime", "")
+                if not create_time_str:
+                    self.lbl_license.setText("Hata")
+                    return
+                
+                create_time_str = create_time_str.split(".")[0].replace("Z", "")
+                create_time = datetime.strptime(create_time_str, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+                server_date_str = resp.headers.get('Date')
+                server_time = parsedate_to_datetime(server_date_str) if server_date_str else datetime.now(timezone.utc)
+                
+                days_passed = (server_time - create_time).days
+                remaining = 180 - days_passed
+                if remaining < 0: remaining = 0
+                
+                self.lbl_license.setText(f"⏳ Lisans: {remaining} Gün")
+                if remaining <= 5:
+                    self.lbl_license.setStyleSheet("background-color: #4a121d; color: #ff4d4d; border: 1px solid #ff4d4d; border-radius: 4px; padding: 4px; font-weight: bold; font-size: 11px;")
+                else:
+                    self.lbl_license.setStyleSheet("background-color: #2b0a11; color: #d4af37; border: 1px solid #b76e79; border-radius: 4px; padding: 4px; font-weight: bold; font-size: 11px;")
+            else:
+                self.lbl_license.setText("Hata")
+        except Exception:
+            self.lbl_license.setText("Bağlantı Yok")
 
     def change_language(self, lang_name):
         self.tr = LANG.get(lang_name, LANG["Türkçe"])
@@ -1193,16 +1188,13 @@ rm -- "$0"
                 
     def upload_video(self):
         ps, _ = QFileDialog.getOpenFileNames(self, "Video Seç", "", "Videolar (*.mp4 *.mov *.avi *.mkv)")
-        for p in ps:
-            shutil.copy2(p, VIDEO_DIR)
+        for p in ps: shutil.copy2(p, VIDEO_DIR)
         self.load_videos_list()
         
     def open_video(self, item):
         path = item.data(Qt.ItemDataRole.UserRole)
-        if sys.platform == "win32":
-            os.startfile(path)
-        else:
-            subprocess.call(["open", path])
+        if sys.platform == "win32": os.startfile(path)
+        else: subprocess.call(["open", path])
             
     def show_video_menu(self, pos):
         item = self.v_l.itemAt(pos)
@@ -1213,8 +1205,7 @@ rm -- "$0"
             del_act = menu.addAction(self.tr["ctx_del_vid"])
             action = menu.exec(self.v_l.mapToGlobal(pos))
             path = item.data(Qt.ItemDataRole.UserRole)
-            if action == open_act:
-                self.open_video(item)
+            if action == open_act: self.open_video(item)
             elif action == ren_act:
                 new_name, ok = QInputDialog.getText(self, self.tr["ctx_ren"], "İsim:")
                 if ok and new_name:
@@ -1230,10 +1221,8 @@ rm -- "$0"
         path, _ = QFileDialog.getOpenFileName(self, "Logo", "", "Resimler (*.png *.jpg *.jpeg)")
         if path:
             pixmap = QPixmap(path).scaled(24, 24, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            if team == "home":
-                self.lbl_logo_h.setPixmap(pixmap)
-            else:
-                self.lbl_logo_a.setPixmap(pixmap)
+            if team == "home": self.lbl_logo_h.setPixmap(pixmap)
+            else: self.lbl_logo_a.setPixmap(pixmap)
 
     def show_memory_menu(self, pos):
         item = self.m_l.itemAt(pos)
@@ -1243,10 +1232,8 @@ rm -- "$0"
             action = menu.exec(self.m_l.mapToGlobal(pos))
             if action == del_action:
                 path = item.data(Qt.ItemDataRole.UserRole)
-                try:
-                    os.remove(path)
-                except:
-                    pass
+                try: os.remove(path)
+                except: pass
                 self.load_memory_images()
 
     def show_tactics_menu(self, pos):
@@ -1257,10 +1244,8 @@ rm -- "$0"
             action = menu.exec(self.t_l.mapToGlobal(pos))
             if action == del_action:
                 path = os.path.join(TACTICS_DIR, f"{item.text()}.json")
-                try:
-                    os.remove(path)
-                except:
-                    pass
+                try: os.remove(path)
+                except: pass
                 self.load_tactics_list()
 
     def replace_player_image(self):
@@ -1272,8 +1257,7 @@ rm -- "$0"
                 self.push_state()
 
     def logout(self):
-        if os.path.exists(AUTH_FILE):
-            os.remove(AUTH_FILE)
+        if os.path.exists(AUTH_FILE): os.remove(AUTH_FILE)
         QMessageBox.information(self, "Çıkış", "Oturumunuz kapatıldı. Uygulama yeniden başlatılıyor...")
         QApplication.quit()
 
@@ -1292,8 +1276,7 @@ rm -- "$0"
         
     def pick_team_color(self, b):
         c = QColorDialog.getColor()
-        if c.isValid():
-            self.set_btn_color(b, c.name())
+        if c.isValid(): self.set_btn_color(b, c.name())
 
     def set_ball_type(self, idx):
         self.current_ball_type = idx
@@ -1307,31 +1290,7 @@ rm -- "$0"
         else:
             self.board.current_mode = m
             self.board.scene.clearSelection()
-    
-    def on_selection_changed(self):
-        items = self.board.scene.selectedItems()
-        if items:
-            self.active_item = items[0]
-            if isinstance(self.active_item, QGraphicsTextItem) and isinstance(self.active_item.parentItem(), Player):
-                self.active_item = self.active_item.parentItem()
-            self.g_e.setEnabled(True)
-            self.s_c.setVisible(isinstance(self.active_item, Arrow) and self.active_item.is_curved)
-            self.btn_replace_img.setVisible(isinstance(self.active_item, Player))
-            self.lbl_col_target.setVisible(isinstance(self.active_item, Player))
-            self.color_target.setVisible(isinstance(self.active_item, Player))
-            self.e_n.setText(self.active_item.name_tag.toPlainText() if isinstance(self.active_item, Player) else "")
             
-            if isinstance(self.active_item, (Player, Football, CustomRect, CustomEllipse, EditableText)):
-                self.s_s.blockSignals(True)
-                self.s_s.setValue(int(self.active_item.scale() * 100))
-                self.s_s.blockSignals(False)
-            if isinstance(self.active_item, (Player, EditableText)):
-                self.s_r.blockSignals(True)
-                self.s_r.setValue(int(self.active_item.rotation()))
-                self.s_r.blockSignals(False)
-        else:
-            self.g_e.setEnabled(False)
-
     def apply_formation(self, team):
         is_h = (team == "home")
         c = self.c_f_h if is_h else self.c_f_a
@@ -1369,10 +1328,8 @@ rm -- "$0"
             x, y = p_p(px, py)
             p = Player(GK_ASSET if gk else PLAYER_ASSET, f"{pre}{i}", c1, c2, x, y, gk)
             p.team = team
-            if not is_v:
-                p.set_mirrored(not is_h, False)
-            else:
-                p.setRotation(270 if is_h else 90)
+            if not is_v: p.set_mirrored(not is_h, False)
+            else: p.setRotation(270 if is_h else 90)
             self.board.scene.addItem(p)
         self.push_state()
 
@@ -1393,15 +1350,13 @@ rm -- "$0"
         if self.active_item: self.active_item.setRotation(v)
     
     def update_mirror_h(self):
-        if isinstance(self.active_item, Player):
-            self.active_item.set_mirrored(not self.active_item.is_mirrored_h, self.active_item.is_mirrored_v)
+        if isinstance(self.active_item, Player): self.active_item.set_mirrored(not self.active_item.is_mirrored_h, self.active_item.is_mirrored_v)
         elif isinstance(self.active_item, Arrow):
             self.active_item.curve_offset *= -1
             self.active_item.update_arrow(self.active_item.start_p, self.active_item.end_p)
 
     def update_mirror_v(self):
-        if isinstance(self.active_item, Player):
-            self.active_item.set_mirrored(self.active_item.is_mirrored_h, not self.active_item.is_mirrored_v)
+        if isinstance(self.active_item, Player): self.active_item.set_mirrored(self.active_item.is_mirrored_h, not self.active_item.is_mirrored_v)
         elif isinstance(self.active_item, Arrow):
             sp, ep = self.active_item.start_p, self.active_item.end_p
             self.active_item.update_arrow(ep, sp)
@@ -1413,24 +1368,19 @@ rm -- "$0"
     def change_obj_color(self):
         if not self.active_item: return
         c = QColorDialog.getColor()
-        if c.isValid():
-            self._apply_color_to_item(c)
+        if c.isValid(): self._apply_color_to_item(c)
 
     def _apply_color_to_item(self, c):
-        if isinstance(self.active_item, EditableText): 
-            self.active_item.setDefaultTextColor(c)
+        if isinstance(self.active_item, EditableText): self.active_item.setDefaultTextColor(c)
         elif isinstance(self.active_item, Player): 
-            if self.color_target.currentIndex() == 1: 
-                self.active_item.name_tag.setDefaultTextColor(c)
+            if self.color_target.currentIndex() == 1: self.active_item.name_tag.setDefaultTextColor(c)
             else: 
                 self.active_item.color1 = c
                 self.active_item.color2 = None
                 self.active_item.load_image(self.active_item.image_path)
         elif isinstance(self.active_item, Arrow): 
-            self.active_item.color = c
-            self.active_item.update_arrow(self.active_item.start_p, self.active_item.end_p)
-        elif isinstance(self.active_item, (CustomRect, CustomEllipse, Football)): 
-            self.active_item.setBrush(QBrush(c))
+            self.active_item.color = c; self.active_item.update_arrow(self.active_item.start_p, self.active_item.end_p)
+        elif isinstance(self.active_item, (CustomRect, CustomEllipse, Football)): self.active_item.setBrush(QBrush(c))
         self.push_state()
 
     def load_memory_images(self):
@@ -1462,22 +1412,19 @@ rm -- "$0"
     def load_tactics_list(self):
         self.t_l.clear()
         for f in os.listdir(TACTICS_DIR):
-            if f.endswith('.json'):
-                self.t_l.addItem(f.replace('.json', ''))
+            if f.endswith('.json'): self.t_l.addItem(f.replace('.json', ''))
     
     def save_tactics(self):
         n, ok = QInputDialog.getText(self, "Kaydet", "Taktik Adı:")
         if ok and n:
             d = self.get_scene_state()
-            with open(os.path.join(TACTICS_DIR, f"{n}.json"), "w") as f:
-                json.dump(d, f)
+            with open(os.path.join(TACTICS_DIR, f"{n}.json"), "w") as f: json.dump(d, f)
             self.load_tactics_list()
             
     def load_selected_tactic(self):
         it = self.t_l.currentItem()
         if not it: return
-        with open(os.path.join(TACTICS_DIR, f"{it.text()}.json"), "r") as f:
-            data = json.load(f)
+        with open(os.path.join(TACTICS_DIR, f"{it.text()}.json"), "r") as f: data = json.load(f)
         self.load_scene_state(data)
         self.push_state()
 
@@ -1486,10 +1433,8 @@ rm -- "$0"
             prs = Presentation()
             scene_rect = self.board.scene.sceneRect()
             aspect_ratio = scene_rect.width() / scene_rect.height()
-            h_inch = 7.5
-            w_inch = 7.5 * aspect_ratio
-            prs.slide_width = Inches(w_inch)
-            prs.slide_height = Inches(h_inch)
+            h_inch, w_inch = 7.5, 7.5 * aspect_ratio
+            prs.slide_width, prs.slide_height = Inches(w_inch), Inches(h_inch)
             slide = prs.slides.add_slide(prs.slide_layouts[6])
             
             all_items = self.board.scene.items()
@@ -1523,8 +1468,7 @@ rm -- "$0"
                     self.board.scene.render(p2, QRectF(0, 0, rect.width(), rect.height()), rect)
                     p2.end()
                     i_i.save(i_p)
-                    left = Inches((rect.x() - scene_rect.x()) * scale_x)
-                    top = Inches((rect.y() - scene_rect.y()) * scale_y)
+                    left, top = Inches((rect.x() - scene_rect.x()) * scale_x), Inches((rect.y() - scene_rect.y()) * scale_y)
                     slide.shapes.add_picture(i_p, left, top, width=Inches(rect.width() * scale_x), height=Inches(rect.height() * scale_y))
                     os.remove(i_p)
                 item.hide()
@@ -1653,8 +1597,7 @@ class LoginDialog(QDialog):
 def attempt_auto_login():
     if os.path.exists(AUTH_FILE):
         try:
-            with open(AUTH_FILE, "r") as f:
-                data = json.load(f)
+            with open(AUTH_FILE, "r") as f: data = json.load(f)
             saved_email = data.get("email", "")
             saved_key = data.get("key", "")
             if saved_email and saved_key:
@@ -1663,24 +1606,19 @@ def attempt_auto_login():
                 if resp.status_code == 200:
                     db_data = resp.json()
                     if 'fields' in db_data and 'licenseKey' in db_data['fields'] and saved_key == db_data['fields']['licenseKey']['stringValue']:
-                        
                         create_time_str = db_data.get("createTime", "")
                         if create_time_str:
                             create_time_str = create_time_str.split(".")[0].replace("Z", "")
                             create_time = datetime.strptime(create_time_str, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
                             server_date_str = resp.headers.get('Date')
                             server_time = parsedate_to_datetime(server_date_str) if server_date_str else datetime.now(timezone.utc)
-                            
-                            if (server_time - create_time).days >= 180:
-                                return None
+                            if (server_time - create_time).days >= 180: return None
                         return saved_email
-        except:
-            pass
+        except: pass
     return None
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    
     auto_email = attempt_auto_login()
     if auto_email:
         window = MainWindow(auto_email)
