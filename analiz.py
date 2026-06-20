@@ -1,4 +1,4 @@
-APP_VERSION = "2.5"
+APP_VERSION = "2.7"
 import sys
 import os
 import math
@@ -652,21 +652,23 @@ class MainWindow(QMainWindow):
         self.b_v.setProperty("class", "DangerBtn")
         self.b_v.clicked.connect(self.toggle_recording)
         
+        self.b_check_upd = QPushButton("🔄 Sürüm Kontrol")
+        self.b_check_upd.clicked.connect(self.manual_update_check)
+        self.b_check_upd.setStyleSheet("background-color: #d4af37; color: #1a060a; font-weight: bold; border-radius: 4px;")
+        
         self.lbl_license = QLabel("⏳ Süre Çekiliyor")
         self.lbl_license.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_license.setStyleSheet("background-color: #2b0a11; color: #d4af37; border: 1px solid #b76e79; border-radius: 4px; font-weight: bold; font-size: 11px;")
-        
-        self.c_lang = QComboBox()
-        self.c_lang.addItems(["Türkçe", "English", "Español", "Deutsch"])
-        self.c_lang.currentTextChanged.connect(self.change_language)
+        self.c_lang = QComboBox(); self.c_lang.addItems(["Türkçe", "English", "Español", "Deutsch"]); self.c_lang.currentTextChanged.connect(self.change_language)
 
         l_o.addWidget(self.b_s, 0, 0)
         l_o.addWidget(self.b_p, 0, 1)
         l_o.addWidget(self.b_pdf, 0, 2)
         l_o.addWidget(self.b_logout, 0, 3)
         l_o.addWidget(self.b_v, 1, 0, 1, 2)
-        l_o.addWidget(self.lbl_license, 1, 2, 1, 2) 
-        l_o.addWidget(self.c_lang, 2, 0, 1, 4)
+        l_o.addWidget(self.b_check_upd, 1, 2, 1, 2) 
+        l_o.addWidget(self.c_lang, 2, 0, 1, 2)
+        l_o.addWidget(self.lbl_license, 2, 2, 1, 2)
         top_l.addWidget(self.g_o)
         main_layout.addWidget(top)
 
@@ -822,7 +824,6 @@ class MainWindow(QMainWindow):
         self.push_state()
         self.showMaximized()
 
-        QTimer.singleShot(1500, self.check_updates)
         QTimer.singleShot(100, self.fetch_remaining_days)
 
     def on_selection_changed(self):
@@ -849,7 +850,10 @@ class MainWindow(QMainWindow):
         else:
             self.g_e.setEnabled(False)
 
-    def check_updates(self):
+    def manual_update_check(self):
+        self.check_updates(manual=True)
+
+    def check_updates(self, manual=False):
         current_version = APP_VERSION
         try:
             url = "https://firestore.googleapis.com/v1/projects/footyscopefg-df329/databases/(default)/documents/system/updates"
@@ -859,6 +863,7 @@ class MainWindow(QMainWindow):
                 data = response.json()
                 fields = data.get('fields', {})
                 
+                latest_version = ""
                 if 'stringValue' in fields.get('latestVersion', {}):
                     latest_version = fields['latestVersion']['stringValue']
                 else:
@@ -872,27 +877,40 @@ class MainWindow(QMainWindow):
                 
                 if current_version != latest_version and download_url:
                     reply = QMessageBox.question(
-                        self, 
-                        "Yeni Sürüm Bulundu 🚀", 
-                        f"FootyscopeFG v{latest_version} hazır!\n\nŞu anki sürümünüz: v{current_version}\nUygulama otomatik güncellenip yeniden başlatılsın mı?",
+                        self, "Yeni Sürüm Bulundu 🚀", 
+                        f"FootyscopeFG v{latest_version} hazır!\n\nLisans süresi ve sistem iyileştirmelerini içerir.\nOtomatik güncellenip yeniden başlatılsın mı?",
                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                     )
                     if reply == QMessageBox.StandardButton.Yes:
                         self.perform_autonomous_update(download_url)
+                elif manual:
+                    QMessageBox.information(self, "Güncel", f"Uygulamanız zaten güncel.\nMevcut Sürüm: v{current_version}")
             else:
-                QMessageBox.warning(self, "Hata", f"Firebase HTTP Kodu: {response.status_code}")
-                
+                if manual:
+                    QMessageBox.warning(self, "Hata", f"Sunucuya bağlanılamadı. Kod: {response.status_code}")
         except Exception as e:
-            pass # Bağlantı hatalarında sessiz kal
+            if manual:
+                QMessageBox.critical(self, "Bağlantı Hatası", f"Güncelleme kontrolü başarısız:\n{str(e)}")
+
+    def fetch_remaining_days(self):
+        if not self.user_email:
+            self.lbl_license.setText("Süre Yok")
+            return
+        try:
+            url = f"https://firestore.googleapis.com/v1/projects/footyscopefg-df329/databases/(default)/documents/users/{self.user_email}"
+            resp = requests.get(url, timeout=5)
+            if resp.status_code == 200:
+                self.lbl_license.setText("💎 Lisans: Sınırsız")
+                self.lbl_license.setStyleSheet("background-color: #2b0a11; color: #d4af37; border: 1px solid #b76e79; border-radius: 4px; padding: 4px; font-weight: bold; font-size: 11px;")
+            else:
+                self.lbl_license.setText("Hata")
+        except Exception:
+            self.lbl_license.setText("Bağlantı Yok")
 
     def perform_autonomous_update(self, download_url):
         from PyQt6.QtWidgets import QProgressDialog
         from PyQt6.QtCore import Qt
-        import tempfile
-        import os
-        import sys
-        import subprocess
-        import requests
+        import tempfile, os, sys, subprocess, requests
 
         temp_dir = tempfile.gettempdir()
         is_win = sys.platform == "win32"
@@ -902,16 +920,12 @@ class MainWindow(QMainWindow):
         try:
             if "drive.google.com" in download_url:
                 file_id = ""
-                if "id=" in download_url:
-                    file_id = download_url.split("id=")[1].split("&")[0]
-                elif "/file/d/" in download_url:
-                    file_id = download_url.split("/file/d/")[1].split("/")[0]
-                
-                if file_id:
-                    download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+                if "id=" in download_url: file_id = download_url.split("id=")[1].split("&")[0]
+                elif "/file/d/" in download_url: file_id = download_url.split("/file/d/")[1].split("/")[0]
+                if file_id: download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
 
             session = requests.Session()
-            response = session.get(download_url, stream=True, timeout=15)
+            response = session.get(download_url, stream=True, timeout=15, allow_redirects=True)
             
             token = None
             for key, value in response.cookies.items():
@@ -920,7 +934,7 @@ class MainWindow(QMainWindow):
                     break
             
             if token:
-                response = session.get(download_url, params={'confirm': token}, stream=True)
+                response = session.get(download_url, params={'confirm': token}, stream=True, allow_redirects=True)
 
             total_size = int(response.headers.get('content-length', 0))
 
@@ -939,10 +953,8 @@ class MainWindow(QMainWindow):
                     if chunk:
                         f.write(chunk)
                         downloaded_size += len(chunk)
-                        if total_size > 0:
-                            progress.setValue(downloaded_size)
-                        else:
-                            progress.setValue((progress.value() + 1) % 100)
+                        if total_size > 0: progress.setValue(downloaded_size)
+                        else: progress.setValue((progress.value() + 1) % 100)
                         QApplication.processEvents() 
             
             progress.setValue(progress.maximum())
@@ -955,60 +967,22 @@ class MainWindow(QMainWindow):
                 if is_win:
                     bat_path = os.path.join(temp_dir, "updater.bat")
                     bat_content = f"""@echo off\ntimeout /t 2 /nobreak > NUL\ncd /d "{file_dir}"\ndel "{file_name}"\nmove /y "{temp_file_path}" "{file_name}"\nstart "" "{file_name}"\ndel "%~f0"\n"""
-                    with open(bat_path, "w", encoding="utf-8") as f:
-                        f.write(bat_content)
+                    with open(bat_path, "w", encoding="utf-8") as f: f.write(bat_content)
                     subprocess.Popen(bat_path, shell=True)
                 else: 
                     app_path = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
                     app_parent_dir = os.path.dirname(app_path)
                     sh_path = os.path.join(temp_dir, "updater.sh")
-                    
                     sh_content = f"""#!/bin/sh\nsleep 2\nif unzip -t "{temp_file_path}" > /dev/null 2>&1; then\n    rm -rf "{app_path}"\n    unzip -o -q "{temp_file_path}" -d "{app_parent_dir}"\n    rm -f "{temp_file_path}"\n    xattr -cr "{app_path}"\n    open "{app_path}"\nelse\n    echo "Indirilen dosya bozuk veya Google Drive engeline takildi." > "{app_parent_dir}/GUNCELLEME_HATASI.txt"\nfi\nrm -- "$0"\n"""
-                    with open(sh_path, "w", encoding="utf-8") as f:
-                        f.write(sh_content)
-                    
+                    with open(sh_path, "w", encoding="utf-8") as f: f.write(sh_content)
                     os.chmod(sh_path, 0o755)
                     subprocess.Popen(["sh", sh_path])
-                
                 sys.exit()
             else:
                 QMessageBox.information(self, "Test Başarılı", f"Test modu: Dosya {temp_file_path} konumuna indi.")
                 
         except Exception as e:
-            QMessageBox.critical(self, "Hata", f"Güncelleme hatası:\n{str(e)}")
-
-    def fetch_remaining_days(self):
-        if not self.user_email:
-            self.lbl_license.setText("Süre Yok")
-            return
-        try:
-            url = f"https://firestore.googleapis.com/v1/projects/footyscopefg-df329/databases/(default)/documents/users/{self.user_email}"
-            resp = requests.get(url, timeout=5)
-            if resp.status_code == 200:
-                db_data = resp.json()
-                create_time_str = db_data.get("createTime", "")
-                if not create_time_str:
-                    self.lbl_license.setText("Hata")
-                    return
-                
-                create_time_str = create_time_str.split(".")[0].replace("Z", "")
-                create_time = datetime.strptime(create_time_str, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
-                server_date_str = resp.headers.get('Date')
-                server_time = parsedate_to_datetime(server_date_str) if server_date_str else datetime.now(timezone.utc)
-                
-                days_passed = (server_time - create_time).days
-                remaining = 180 - days_passed
-                if remaining < 0: remaining = 0
-                
-                self.lbl_license.setText(f"⏳ Lisans: {remaining} Gün")
-                if remaining <= 5:
-                    self.lbl_license.setStyleSheet("background-color: #4a121d; color: #ff4d4d; border: 1px solid #ff4d4d; border-radius: 4px; padding: 4px; font-weight: bold; font-size: 11px;")
-                else:
-                    self.lbl_license.setStyleSheet("background-color: #2b0a11; color: #d4af37; border: 1px solid #b76e79; border-radius: 4px; padding: 4px; font-weight: bold; font-size: 11px;")
-            else:
-                self.lbl_license.setText("Hata")
-        except Exception:
-            self.lbl_license.setText("Bağlantı Yok")
+            QMessageBox.critical(self, "Hata", f"Güncelleme indirme hatası:\n{str(e)}")
 
     def change_language(self, lang_name):
         self.tr = LANG.get(lang_name, LANG["Türkçe"])
@@ -1567,19 +1541,6 @@ class LoginDialog(QDialog):
                 data = response.json()
                 if 'fields' in data and 'licenseKey' in data['fields']:
                     if key_text == data['fields']['licenseKey']['stringValue']:
-                        
-                        create_time_str = data.get("createTime", "")
-                        if create_time_str:
-                            create_time_str = create_time_str.split(".")[0].replace("Z", "")
-                            create_time = datetime.strptime(create_time_str, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
-                            server_date_str = response.headers.get('Date')
-                            server_time = parsedate_to_datetime(server_date_str) if server_date_str else datetime.now(timezone.utc)
-                     
-                            if (server_time - create_time).days >= 180:
-                                QMessageBox.critical(self, "Lisans Süresi Doldu 🛑", "Lisans Süreniz Dolmuştur, Lütfen Yöneticiyle İletişime Geçin")
-                                sys.exit()
-                                return
-                            
                         if self.remember_cb.isChecked():
                             try:
                                 with open(AUTH_FILE, "w") as f:
@@ -1594,6 +1555,126 @@ class LoginDialog(QDialog):
         except requests.exceptions.RequestException:
             QMessageBox.critical(self, "Bağlantı Hatası", "Sunucuya ulaşılamıyor.")
 
+def check_for_updates_before_login():
+    current_version = APP_VERSION
+    try:
+        url = "https://firestore.googleapis.com/v1/projects/footyscopefg-df329/databases/(default)/documents/system/updates"
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            fields = data.get('fields', {})
+            
+            if 'stringValue' in fields.get('latestVersion', {}):
+                latest_version = fields['latestVersion']['stringValue']
+            else:
+                val = fields.get('latestVersion', {})
+                latest_version = str(val.get('doubleValue', val.get('integerValue', '1.0')))
+            
+            if sys.platform == "win32":
+                download_url = fields.get('downloadUrlWin', {}).get('stringValue', '')
+            else:
+                download_url = fields.get('downloadUrlMac', {}).get('stringValue', '')
+            
+            if current_version != latest_version and download_url:
+                msg = QMessageBox()
+                reply = msg.question(
+                    None, "Kritik Güncelleme Bulundu 🚀", 
+                    f"FootyscopeFG v{latest_version} hazır!\n\nLisans süresi ve sistem iyileştirmelerini içerir.\nOtomatik güncellenip yeniden başlatılsın mı?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                )
+                if reply == QMessageBox.StandardButton.Yes:
+                    perform_autonomous_update_standalone(download_url)
+    except Exception:
+        pass
+
+def perform_autonomous_update_standalone(download_url):
+    from PyQt6.QtWidgets import QProgressDialog, QMessageBox
+    from PyQt6.QtCore import Qt
+    import tempfile, os, sys, subprocess, requests
+
+    temp_dir = tempfile.gettempdir()
+    is_win = sys.platform == "win32"
+    temp_file_name = "FootyscopeFG_Update.exe" if is_win else "FootyscopeFG_Update.zip"
+    temp_file_path = os.path.join(temp_dir, temp_file_name)
+
+    try:
+        if "drive.google.com" in download_url:
+            file_id = ""
+            if "id=" in download_url: file_id = download_url.split("id=")[1].split("&")[0]
+            elif "/file/d/" in download_url: file_id = download_url.split("/file/d/")[1].split("/")[0]
+            if file_id: download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+
+        session = requests.Session()
+        response = session.get(download_url, stream=True, timeout=15, allow_redirects=True)
+        token = None
+        for key, value in response.cookies.items():
+            if key.startswith('download_warning'):
+                token = value
+                break
+        if token:
+            response = session.get(download_url, params={'confirm': token}, stream=True, allow_redirects=True)
+
+        total_size = int(response.headers.get('content-length', 0))
+        progress = QProgressDialog("Yeni sürüm indiriliyor... Lütfen bekleyin.", "İptal", 0, total_size if total_size > 0 else 100)
+        progress.setWindowTitle("FootyscopeFG Güncelleniyor")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setValue(0)
+        progress.show()
+
+        downloaded_size = 0
+        with open(temp_file_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=32768):
+                if progress.wasCanceled():
+                    return 
+                if chunk:
+                    f.write(chunk)
+                    downloaded_size += len(chunk)
+                    if total_size > 0: progress.setValue(downloaded_size)
+                    else: progress.setValue((progress.value() + 1) % 100)
+                    QApplication.processEvents() 
+        progress.setValue(progress.maximum())
+
+        if getattr(sys, 'frozen', False):
+            current_file = sys.executable 
+            file_dir = os.path.dirname(current_file)
+            file_name = os.path.basename(current_file)
+            
+            if is_win:
+                bat_path = os.path.join(temp_dir, "updater.bat")
+                # KRİTİK DÜZELTME: Dosya silinene kadar bekleyen sonsuz döngü
+                bat_content = f"""@echo off
+:loop
+timeout /t 1 /nobreak > NUL
+del "{file_name}"
+if exist "{file_name}" goto loop
+move /y "{temp_file_path}" "{file_name}"
+start "" "{file_name}"
+del "%~f0"
+"""
+                with open(bat_path, "w", encoding="utf-8") as f: f.write(bat_content)
+                subprocess.Popen(bat_path, shell=True)
+            else: 
+                app_path = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
+                app_parent_dir = os.path.dirname(app_path)
+                sh_path = os.path.join(temp_dir, "updater.sh")
+                sh_content = f"""#!/bin/sh
+sleep 2
+if unzip -t "{temp_file_path}" > /dev/null 2>&1; then
+    rm -rf "{app_path}"
+    unzip -o -q "{temp_file_path}" -d "{app_parent_dir}"
+    rm -f "{temp_file_path}"
+    xattr -cr "{app_path}"
+    open "{app_path}"
+fi
+rm -- "$0"
+"""
+                with open(sh_path, "w", encoding="utf-8") as f: f.write(sh_content)
+                os.chmod(sh_path, 0o755)
+                subprocess.Popen(["sh", sh_path])
+            sys.exit()
+    except Exception as e:
+        pass
+
 def attempt_auto_login():
     if os.path.exists(AUTH_FILE):
         try:
@@ -1606,19 +1687,16 @@ def attempt_auto_login():
                 if resp.status_code == 200:
                     db_data = resp.json()
                     if 'fields' in db_data and 'licenseKey' in db_data['fields'] and saved_key == db_data['fields']['licenseKey']['stringValue']:
-                        create_time_str = db_data.get("createTime", "")
-                        if create_time_str:
-                            create_time_str = create_time_str.split(".")[0].replace("Z", "")
-                            create_time = datetime.strptime(create_time_str, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
-                            server_date_str = resp.headers.get('Date')
-                            server_time = parsedate_to_datetime(server_date_str) if server_date_str else datetime.now(timezone.utc)
-                            if (server_time - create_time).days >= 180: return None
                         return saved_email
         except: pass
     return None
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    
+    # KRİTİK DEĞİŞİKLİK: Uygulama açılır açılmaz güncellemeyi çekecek!
+    check_for_updates_before_login()
+    
     auto_email = attempt_auto_login()
     if auto_email:
         window = MainWindow(auto_email)
